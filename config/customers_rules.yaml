@@ -1,0 +1,43 @@
+# DQX Data Quality Rules for Customers
+# See: https://databrickslabs.github.io/dqx/
+
+rules:
+  - col_name: id
+    name: customer_id_not_null
+    check_func: is_not_null
+    criticality: ERROR
+    
+  - col_name: customer_name
+    name: customer_name_not_null
+    check_func: is_not_null
+    criticality: ERROR
+    
+  - col_name: customer_name
+    name: customer_name_not_blank
+    check_func: "lambda col: col.isNotNull() & (col != '')"
+    criticality: ERROR
+    
+  - col_name: email
+    name: email_not_null
+    check_func: is_not_null
+    criticality: ERROR
+    
+  - col_name: email
+    name: email_valid_format
+    check_func: is_email
+    criticality: ERROR
+    
+  - col_name: phone
+    name: phone_not_null
+    check_func: is_not_null
+    criticality: ERROR
+    
+  - col_name: country
+    name: country_not_null
+    check_func: is_not_null
+    criticality: ERROR
+    
+  - col_name: registration_date
+    name: registration_date_not_null
+    check_func: is_not_null
+    criticality: ERROR

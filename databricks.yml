@@ -1,0 +1,52 @@
+# Databricks Asset Bundle configuration for DQX Data Quality Demo
+bundle:
+  name: dqx-demo
+
+# Workspace configuration
+workspace:
+  host: ${workspace.host}
+
+# Include additional bundle configuration files
+include:
+  - resources/*.yml
+
+# Variables that can be referenced throughout the bundle
+variables:
+  catalog:
+    description: Unity Catalog catalog name
+    default: main
+  schema:
+    description: Unity Catalog schema name
+    default: dqx_demo
+  volume:
+    description: Unity Catalog volume name for raw data
+    default: raw_data
+  num_rows:
+    description: Number of rows to generate in the data generation notebook
+    default: 10000
+
+# Targets for different environments
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: ${workspace.host}
+    variables:
+      catalog: main
+      schema: dqx_demo_dev
+      volume: raw_data
+
+  prod:
+    mode: production
+    workspace:
+      host: ${workspace.host}
+      # Restrict deployments to a specific path prefix in the workspace
+      root_path: /Workspace/Production/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      catalog: main
+      schema: dqx_demo_prod
+      volume: raw_data
+    run_as:
+      # Deploy as a service principal in production
+      service_principal_name: ${workspace.service_principal}

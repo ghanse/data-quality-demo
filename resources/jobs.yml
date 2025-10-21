@@ -1,0 +1,59 @@
+# Job Configuration for Daily Data Generation and Pipeline Execution
+resources:
+  jobs:
+    daily_data_quality_refresh:
+      name: "[${bundle.target}] Daily Data Quality Refresh"
+      
+      # Schedule: Run daily at 2 AM
+      schedule:
+        quartz_cron_expression: "0 0 2 * * ?"
+        timezone_id: "UTC"
+        pause_status: UNPAUSED
+      
+      # Email notifications on failure
+      email_notifications:
+        on_failure:
+          - ${workspace.current_user.userName}
+      
+      # Job cluster configuration for data generation
+      job_clusters:
+        - job_cluster_key: data_generation_cluster
+          new_cluster:
+            spark_version: 14.3.x-scala2.12
+            node_type_id: i3.xlarge
+            num_workers: 2
+            data_security_mode: USER_ISOLATION
+            spark_conf:
+              spark.databricks.cluster.profile: serverless
+      
+      # Job tasks
+      tasks:
+        # Task 1: Generate data with quality issues
+        - task_key: generate_data
+          job_cluster_key: data_generation_cluster
+          notebook_task:
+            notebook_path: ../notebooks/01_generate_data.py
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              volume: ${var.volume}
+              num_rows: ${var.num_rows}
+          timeout_seconds: 3600
+        
+        # Task 2: Run DLT pipeline to process data with DQX checks
+        - task_key: run_dqx_pipeline
+          depends_on:
+            - task_key: generate_data
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.dqx_data_quality_pipeline.id}
+            full_refresh: false
+          timeout_seconds: 7200
+      
+      # Retry configuration
+      max_concurrent_runs: 1
+      timeout_seconds: 0
+      
+      # Tags for organization
+      tags:
+        project: dqx-demo
+        environment: ${bundle.target}

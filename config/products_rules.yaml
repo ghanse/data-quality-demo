@@ -1,0 +1,33 @@
+# DQX Data Quality Rules for Products
+# See: https://databrickslabs.github.io/dqx/
+
+rules:
+  - col_name: id
+    name: product_id_not_null
+    check_func: is_not_null
+    criticality: ERROR
+    
+  - col_name: product_name
+    name: product_name_not_null
+    check_func: is_not_null
+    criticality: ERROR
+    
+  - col_name: product_name
+    name: product_name_not_blank
+    check_func: "lambda col: col.isNotNull() & (col != '')"
+    criticality: ERROR
+    
+  - col_name: category
+    name: category_valid_values
+    check_func: "lambda col: col.isin(['Electronics', 'Clothing', 'Home', 'Sports', 'Books', 'Toys'])"
+    criticality: ERROR
+    
+  - col_name: unit_price
+    name: unit_price_positive
+    check_func: "lambda col: col > 0"
+    criticality: ERROR
+    
+  - col_name: stock_quantity
+    name: stock_quantity_non_negative
+    check_func: "lambda col: col >= 0"
+    criticality: ERROR

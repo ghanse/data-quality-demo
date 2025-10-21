@@ -1,0 +1,53 @@
+# Delta Live Tables Pipeline Configuration
+resources:
+  pipelines:
+    dqx_data_quality_pipeline:
+      name: "[${bundle.target}] DQX Data Quality Pipeline"
+      
+      # Pipeline configuration
+      target: ${var.catalog}.${var.schema}
+      
+      # Serverless compute configuration
+      serverless: true
+      
+      # Pipeline mode - triggered (batch) execution
+      continuous: false
+      
+      # Development mode for detailed logging and error handling
+      development: true
+      
+      # Enable enhanced autoscaling
+      channel: CURRENT
+      
+      # Enable photon for better performance
+      photon: true
+      
+      # Pipeline libraries (notebook and configuration files)
+      libraries:
+        - notebook:
+            path: ../notebooks/02_dqx_pipeline.py
+        - file:
+            path: ../config/customers_rules.yaml
+        - file:
+            path: ../config/products_rules.yaml
+        - file:
+            path: ../config/orders_rules.yaml
+      
+      # Configuration parameters passed to the pipeline
+      configuration:
+        volume_path: /Volumes/${var.catalog}/${var.schema}/${var.volume}
+        checkpoint_location: /Volumes/${var.catalog}/${var.schema}/${var.volume}/_checkpoints
+        rules_location: ${workspace.file_path}/../config
+      
+      # Enable expectations for data quality monitoring
+      expectations:
+        # Track all quality checks
+        action: ALLOW
+      
+      # Notifications (optional)
+      notifications:
+        - alerts:
+            - on-update-failure
+            - on-update-fatal-failure
+          email_recipients:
+            - ${workspace.current_user.userName}

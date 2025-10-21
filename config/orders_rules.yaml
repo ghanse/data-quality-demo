@@ -1,0 +1,43 @@
+# DQX Data Quality Rules for Orders
+# See: https://databrickslabs.github.io/dqx/
+
+rules:
+  - col_name: id
+    name: order_id_not_null
+    check_func: is_not_null
+    criticality: ERROR
+    
+  - col_name: customer_id
+    name: customer_id_not_null
+    check_func: is_not_null
+    criticality: ERROR
+    
+  - col_name: product_id
+    name: product_id_not_null
+    check_func: is_not_null
+    criticality: ERROR
+    
+  - col_name: order_date
+    name: order_date_not_null
+    check_func: is_not_null
+    criticality: ERROR
+    
+  - col_name: quantity
+    name: quantity_positive
+    check_func: "lambda col: col > 0"
+    criticality: ERROR
+    
+  - col_name: order_amount
+    name: order_amount_positive
+    check_func: "lambda col: col > 0"
+    criticality: ERROR
+    
+  - col_name: status
+    name: status_not_blank
+    check_func: "lambda col: col.isNotNull() & (col != '')"
+    criticality: ERROR
+    
+  - col_name: status
+    name: status_valid_values
+    check_func: "lambda col: col.isin(['pending', 'processing', 'shipped', 'delivered', 'cancelled'])"
+    criticality: ERROR
