@@ -94,32 +94,32 @@ This demo shows you how to build a data quality pipeline using the DQX framework
 
 ### Components
 
-The demo consists of:
+The demo is bundled as a Databricks Asset Bundle which allows you to deploy and run jobs using the Databricks Command Line Interface (CLI).
 
-1. **Data Generation Notebook** (`notebooks/01_generate_data.py`): Uses Databricks Labs' data generator to create a multi-table sales dataset (customers, products, orders) with randomly injected quality issues such as:
+#### Bundle Resources
+
+Running the demo deploys the following resources in your Databricks workspace:
+
+1. *Data Processing Pipeline*: A serverless Lakeflow pipeline for processing data from files into business-ready analytics datasets. The pipeline can be run ad-hoc, programatically via the CLI, or triggered from a job.
+
+2. *End-to-end Job*: An hourly serverless job that generates new data and runs the pipeline. The job can be run ad-hoc or programatically via the CLI.
+
+#### Bundle Files
+
+The demo contains the following source code files:
+
+1. *Data Generation Notebook* (`notebooks/01_generate_data.py`): Uses Databricks Labs' data generator to create a multi-table sales dataset (customers, products, orders) with randomly injected quality issues such as:
    - Missing values (`NULL` fields)
    - Blank strings
    - Negative currency amounts
    - Invalid values
 
-2. **DQX Pipeline Notebook** (`notebooks/02_dqx_pipeline.py`): A PySpark-based Lakeflow Declarative pipeline that:
+2. *DQX Pipeline Notebook* (`notebooks/02_dqx_pipeline.py`): A PySpark-based Lakeflow Declarative pipeline that:
    - Ingests CSV files using [Auto Loader](https://docs.databricks.com/aws/en/ingestion/cloud-object-storage/auto-loader/) into bronze layer streaming tables (no quality checks)
-   - **Applies DQX quality checks at the silver layer** using metadata-driven rules from YAML configuration
-   - Loads YAML rules using `yaml.safe_load()` from the `rules_location` pipeline parameter
-   - Uses a shared `DQEngine` instance passed to all table functions for efficiency
-   - DQX `apply_checks()` adds `_errors`, `_warnings`, and `_valid` columns to data
-   - **Leverages DLT expectations** (`@dlt.expect_or_drop`) based on the `_valid` column to route records
-   - Creates silver layer streaming tables with only valid records (`_valid = true`)
-   - Routes invalid records to quarantine tables using DLT expectations (`_valid = false`)
+   - Applies DQX quality checks at the silver layer using metadata-driven rules from YAML configuration and uses DQX + LDP Expectations to actively quarantine low-quality data
    - Creates enriched gold layer tables for analytics
-   - Generates data quality summary metrics
 
-3. **Databricks Asset Bundle**: Infrastructure-as-code configuration that deploys:
-   - A serverless Lakeflow pipeline for processing data
-   - A daily job that generates new data and runs the pipeline
-   - Parameterized configuration for dev/prod environments
-
-4. **Quality Metrics Analysis Notebook** (`notebooks/03_analyze_quality_metrics.py`): A comprehensive data analysis that:
+3. *Quality Metrics Analysis Notebook* (`notebooks/03_analyze_quality_metrics.py`): A comprehensive data analysis that:
    - Displays current quality summary and pass/fail rates
    - Shows quality trends over time
    - Analyzes quarantined records and identifies issue patterns
@@ -137,13 +137,13 @@ The pipeline implements comprehensive DQX checks using the [DQX framework](https
 
 The pipeline follows a medallion architecture where data is moved through several layers of curation. DQX and LDP expectations provide a complete data quality solution for checking conditions, generating metadata, and quarantining results.
 
-1. **Bronze Layer**: Raw data ingestion with Auto Loader (no quality checks)
-2. **Silver Layer**: DQX `apply_checks_by_metadata()` is applied here, adding columns with rich data quality metadata.
+1. *Bronze Layer*: Raw data ingestion with Auto Loader (no quality checks)
+2. *Silver Layer*: DQX `apply_checks_by_metadata()` is applied here, adding columns with rich data quality metadata.
    - `_errors`: Array of error messages for failed checks
    - `_warnings`: Array of warning messages
 
 LDP Expectations are be applied to ensure that rows with any `_errors` or `_warnings` are written to a quarantine table.
-4. **Gold Layer**: Data validated with DQX + Expectations is used to write gold layer aggregations and provide rich, business-ready data.
+4. *Gold Layer*: Data validated with DQX + Expectations is used to write gold layer aggregations and provide rich, business-ready data.
 
 ### Defining DQX Checks in YAML
 
@@ -211,33 +211,33 @@ def customers_silver(engine: DQEngine = dq_engine):
 In this example all rules are defined with the `'error'` criticality.
 
 #### Customer Data Quality Rules
-- **Completeness Checks**: Customer IDs, names, emails, phones, countries, registration dates must be non-null; Customer names must be non-null, non-empty strings
-- **Validity Checks**: Using regex pattern `.*@.*\..*` for proper format
+- *Completeness Checks*: Customer IDs, names, emails, phones, countries, registration dates must be non-null; Customer names must be non-null, non-empty strings
+- *Validity Checks*: Using regex pattern `.*@.*\..*` for proper format
 
 #### Product Data Quality Rules
-- **Completeness Checks**: Product IDs and names must be non-null
-- **Consistency Checks**: Product categories must be in a list of allowed values
-- **Validity Checks**: Unit prices and stock quantities must be >= 0 (exclusive)
+- *Completeness Checks*: Product IDs and names must be non-null
+- *Consistency Checks*: Product categories must be in a list of allowed values
+- *Validity Checks*: Unit prices and stock quantities must be >= 0 (exclusive)
 
 #### Order Data Quality Rules
-- **Completeness Checks**: Order IDs, customer IDs, product IDs, order dates must be non-null; Order statuses must be non-null, non-empty strings
-- **Consistency Checks**: Order statuses must be in a list of allowed values
-- **Validity Checks**: Order quantities and amounts must be >= 0 (exclusive)
+- *Completeness Checks*: Order IDs, customer IDs, product IDs, order dates must be non-null; Order statuses must be non-null, non-empty strings
+- *Consistency Checks*: Order statuses must be in a list of allowed values
+- *Validity Checks*: Order quantities and amounts must be >= 0 (exclusive)
 
-Records that fail quality checks are automatically routed to **quarantine tables** for analysis and remediation, while valid records flow to silver tables. Quality metrics are tracked in a `dqx_quality_summary` table showing pass/fail rates for each entity.
+Records that fail quality checks are automatically routed to quarantine tables for remediation. Valid records flow to silver tables and into downstream analytics results. Data quality metrics are tracked in a `dqx_quality_summary` table showing pass/fail rates for each business object.
 
 ## Prerequisites
 
 Before deploying this demo, ensure you have:
 
-1. **Databricks Workspace**: A Databricks workspace with Unity Catalog enabled
-2. **Databricks CLI**: Install the Databricks CLI (version 0.258 or later)
+1. *Databricks Workspace*: A Databricks workspace with Unity Catalog enabled
+2. *Databricks CLI*: Install the Databricks CLI (version 0.258 or later)
    - Installation guide: https://docs.databricks.com/dev-tools/cli/databricks-cli.html
-3. **Authentication**: Configure authentication to your workspace
+3. *Authentication*: Configure authentication to your workspace
    - Authentication guide: https://docs.databricks.com/dev-tools/cli/authentication.html
-4. **Unity Catalog Permissions**: Permissions to create catalogs, schemas, volumes, and tables
-5. **Compute Permissions**: Ability to create serverless compute and job clusters
-6. **Library Installation Permissions**: Ability to install Python libraries from [PyPi](https://pypi.org)
+4. *Unity Catalog Permissions*: Permissions to create catalogs, schemas, volumes, and tables
+5. *Compute Permissions*: Ability to create serverless compute and job clusters
+6. *Library Installation Permissions*: Ability to install Python libraries from [PyPi](https://pypi.org)
 
 ## Installation
 
@@ -330,22 +330,22 @@ databricks bundle run daily_data_quality_refresh --target dev
 ```
 
 Alternatively, navigate to the Databricks workspace UI:
-1. Go to **Workflows** → **Jobs**
+1. Go to *Workflows* → *Jobs*
 2. Find `[dev] Daily Data Quality Refresh`
-3. Click **Run now**
+3. Click *Run now*
 
 ## Monitoring and Observability
 
 ### View Pipeline Execution
 
-1. Navigate to **Workflows** → **Delta Live Tables** in your Databricks workspace
+1. Navigate to *Workflows* → *Delta Live Tables* in your Databricks workspace
 2. Select `[dev] DQX Data Quality Pipeline`
 3. View the pipeline graph, execution history, and data lineage
 
 ### Monitor Data Quality Metrics
 
 1. In the DLT pipeline UI, click on any silver table
-2. View the **Data Quality** tab to see:
+2. View the *Data Quality* tab to see:
    - Number of records processed
    - Number of records that passed/failed each constraint
    - Historical trends of data quality metrics
@@ -400,109 +400,6 @@ data-quality-demo/
     ├── 02_dqx_pipeline.py             # DQX pipeline notebook (PySpark)
     └── 03_analyze_quality_metrics.py  # Data quality analysis notebook
 ```
-
-## Deploying to Production
-
-To deploy to a production environment:
-
-```bash
-# Deploy to production target
-databricks bundle deploy --target prod
-```
-
-**Important**: Before deploying to production:
-1. Update `databricks.yml` with the appropriate environment configuration
-2. Create a service principal to use as the `run_as` user for jobs and pipelines
-3. Set up proper alerting and monitoring
-4. Consider enabling more strict quality checks or quarantine patterns
-
-For production best practices, see the [Databricks Asset Bundles production documentation](https://docs.databricks.com/dev-tools/bundles/deployment-modes.html).
-
-## Customization
-
-### Adjusting Data Volume
-
-Modify the `num_rows` variable in `databricks.yml` or pass it as a parameter:
-
-```bash
-databricks bundle deploy --target dev --var num_rows=50000
-```
-
-### Modifying Quality Checks
-
-Edit the appropriate YAML file in `/config` to add, remove, or modify DQX rules. The YAML format follows the structure described in the "Defining DQX Checks in YAML" section above.
-
-**Example: Add a new rule to `config/customers_rules.yaml`**:
-
-```yaml
-- criticality: error
-  name: age_in_valid_range
-  check:
-    function: is_not_less_than
-    arguments: 
-      column: age
-      limit: 18
-```
-
-**Example: Add a warning for high-value orders to `config/orders_rules.yaml`**:
-
-```yaml
-- criticality: warning
-  name: high_value_order_flag
-  check:
-    function: is_less_than
-    arguments: 
-      column: order_amount
-      limit: 10000
-```
-
-**Available DQX Check Functions:**
-- `is_not_null`: Column is not NULL
-- `is_not_null_and_not_empty`: String column is not NULL or empty
-- `regex_match`: Column matches regex pattern (requires `regex` argument)
-- `is_in_list`: Column value is in allowed list (requires `allowed` argument)
-- `is_not_less_than`: Column value >= limit (requires `limit` argument)
-- `is_less_than`: Column value < limit (requires `limit` argument)
-- `is_not_greater_than`: Column value <= limit (requires `limit` argument)
-- `is_greater_than`: Column value > limit (requires `limit` argument)
-
-See [DQX documentation](https://databrickslabs.github.io/dqx/) for the complete list of available check functions and advanced usage examples.
-
-### Adding More Tables
-
-1. **Generate Data**: Add data generation logic in `notebooks/01_generate_data.py` to write CSV files to the volume
-2. **Define DQX Rules**: Create a new YAML file `config/<entity_name>_rules.yaml` with DQX quality rules
-3. **Upload YAML to Workspace**: Ensure the YAML file is uploaded to the workspace path specified in `rules_location` parameter
-4. **Create Bronze Table**: Add a bronze streaming table using Auto Loader in `notebooks/02_dqx_pipeline.py`:
-   ```python
-   @dlt.table(name="<entity>_bronze")
-   def entity_bronze():
-       return spark.readStream.format("cloudFiles")...
-   ```
-5. **Create Silver Table**: Create silver table with DQX checks and expectations:
-   ```python
-   @dlt.table(name="<entity>_silver")
-   @dlt.expect("no_dqx_warnings", "_warnings IS NULL")
-   @dlt.expect_or_drop("no_dqx_errors", "_errors IS NULL")
-   def entity_silver(engine: DQEngine = dq_engine):
-       bronze_df = dlt.read_stream("<entity>_bronze")
-       yaml_file = f"{rules_location}/<entity>_rules.yaml"
-       checks = engine.load_checks(WorkspaceFileChecksStorageConfig(yaml_file))
-       return engine.apply_checks_by_metadata(bronze_df, checks)
-   ```
-6. **Create Quarantine Table**: Create quarantine table to capture invalid records:
-   ```python
-   @dlt.table(name="<entity>_quarantine")
-   @dlt.expect_or_drop("has_dqx_errors", "_errors IS NOT NULL")
-   def entity_quarantine(engine: DQEngine = dq_engine):
-       bronze_df = dlt.read_stream("<entity>_bronze")
-       yaml_file = f"{rules_location}/<entity>_rules.yaml"
-       checks = engine.load_checks(WorkspaceFileChecksStorageConfig(yaml_file))
-       df_with_checks = engine.apply_checks_by_metadata(bronze_df, checks)
-       return df_with_checks.select("*", F.current_timestamp().alias("_quarantine_ts"))
-   ```
-7. **Update Gold Layer**: Optionally add the new entity to gold layer tables with joins
-8. **Update Quality Summary**: Add the new table to the `dqx_quality_summary` logic if needed
 
 ## Troubleshooting
 
