@@ -4,7 +4,7 @@ bundle:
 
 # Workspace configuration
 workspace:
-  host: ${workspace.host}
+  host: <Databricks Workspace URL>
 
 # Include additional bundle configuration files
 include:
@@ -14,39 +14,13 @@ include:
 variables:
   catalog:
     description: Unity Catalog catalog name
-    default: main
+    default: <Unity Catalog catalog name>
   schema:
     description: Unity Catalog schema name
-    default: dqx_demo
+    default: <Unity Catalog schema name>
   volume:
-    description: Unity Catalog volume name for raw data
-    default: raw_data
+    description: Unity Catalog volume name for storing CSV files
+    default: <Unity Catalog volume name>
   num_rows:
     description: Number of rows to generate in the data generation notebook
     default: 10000
-
-# Targets for different environments
-targets:
-  dev:
-    mode: development
-    default: true
-    workspace:
-      host: ${workspace.host}
-    variables:
-      catalog: main
-      schema: dqx_demo_dev
-      volume: raw_data
-
-  prod:
-    mode: production
-    workspace:
-      host: ${workspace.host}
-      # Restrict deployments to a specific path prefix in the workspace
-      root_path: /Workspace/Production/.bundle/${bundle.name}/${bundle.target}
-    variables:
-      catalog: main
-      schema: dqx_demo_prod
-      volume: raw_data
-    run_as:
-      # Deploy as a service principal in production
-      service_principal_name: ${workspace.service_principal}

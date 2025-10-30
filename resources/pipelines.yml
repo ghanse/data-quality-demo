@@ -2,13 +2,17 @@
 resources:
   pipelines:
     dqx_data_quality_pipeline:
-      name: "[${bundle.target}] DQX Data Quality Pipeline"
+      name: "[${bundle.name}] Data Pipeline"
       
       # Pipeline configuration
-      target: ${var.catalog}.${var.schema}
+      catalog: ${var.catalog}
+      schema: ${var.schema}
       
       # Serverless compute configuration
       serverless: true
+      environment:
+        dependencies:
+          - databricks-labs-dqx
       
       # Pipeline mode - triggered (batch) execution
       continuous: false
@@ -26,23 +30,12 @@ resources:
       libraries:
         - notebook:
             path: ../notebooks/02_dqx_pipeline.py
-        - file:
-            path: ../config/customers_rules.yaml
-        - file:
-            path: ../config/products_rules.yaml
-        - file:
-            path: ../config/orders_rules.yaml
       
       # Configuration parameters passed to the pipeline
       configuration:
         volume_path: /Volumes/${var.catalog}/${var.schema}/${var.volume}
         checkpoint_location: /Volumes/${var.catalog}/${var.schema}/${var.volume}/_checkpoints
-        rules_location: ${workspace.file_path}/../config
-      
-      # Enable expectations for data quality monitoring
-      expectations:
-        # Track all quality checks
-        action: ALLOW
+        rules_location: ${workspace.file_path}/config
       
       # Notifications (optional)
       notifications:

@@ -1,33 +1,46 @@
 # DQX Data Quality Rules for Products
 # See: https://databrickslabs.github.io/dqx/
 
-rules:
-  - col_name: id
-    name: product_id_not_null
-    check_func: is_not_null
-    criticality: ERROR
+- criticality: error
+  name: product_id_not_null
+  check:
+    function: is_not_null
+    arguments: 
+      column: id
     
-  - col_name: product_name
-    name: product_name_not_null
-    check_func: is_not_null
-    criticality: ERROR
+- criticality: error
+  name: product_name_not_blank
+  check:
+    function: is_not_null_and_not_empty
+    arguments: 
+      column: product_name
     
-  - col_name: product_name
-    name: product_name_not_blank
-    check_func: "lambda col: col.isNotNull() & (col != '')"
-    criticality: ERROR
-    
-  - col_name: category
-    name: category_valid_values
-    check_func: "lambda col: col.isin(['Electronics', 'Clothing', 'Home', 'Sports', 'Books', 'Toys'])"
-    criticality: ERROR
-    
-  - col_name: unit_price
-    name: unit_price_positive
-    check_func: "lambda col: col > 0"
-    criticality: ERROR
-    
-  - col_name: stock_quantity
-    name: stock_quantity_non_negative
-    check_func: "lambda col: col >= 0"
-    criticality: ERROR
+- criticality: error
+  name: category_valid_values
+  check:
+    function: is_in_list
+    arguments: 
+      column: category
+      allowed: 
+        - "Electronics"
+        - "Clothing"
+        - "Home"
+        - "Sports"
+        - "Books"
+        - "Toys"
+
+- criticality: error
+  name: unit_price_positive
+  check:
+    function: is_not_less_than
+    arguments: 
+      column: unit_price
+      limit: 0
+      
+- criticality: error
+  name: stock_quantity_non_negative
+  check:
+    function: is_not_less_than
+    arguments: 
+      column: stock_quantity
+      limit: 0

@@ -9,14 +9,6 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install databricks-labs-dqx
-
-# COMMAND ----------
-
-dbutils.library.restartPython()
-
-# COMMAND ----------
-
 import dlt
 import yaml
 
@@ -25,6 +17,7 @@ from pyspark.sql import functions as F
 from pyspark.sql.types import *
 
 from databricks.labs.dqx.engine import DQEngine
+from databricks.labs.dqx.config import WorkspaceFileChecksStorageConfig
 from databricks.sdk import WorkspaceClient
 
 # COMMAND ----------
@@ -37,7 +30,7 @@ from databricks.sdk import WorkspaceClient
 # Get configuration from pipeline settings
 volume_path = spark.conf.get("volume_path")
 checkpoint_location = spark.conf.get("checkpoint_location")
-rules_location = spark.conf.get("rules_location", "/Workspace/.bundle/config")
+rules_location = spark.conf.get("rules_location")
 
 print(f"Volume path: {volume_path}")
 print(f"Checkpoint location: {checkpoint_location}")
@@ -66,12 +59,10 @@ dq_engine = DQEngine(workspace_client)
 )
 def customers_bronze() -> DataFrame:
     return (
-        spark.readStream
-        .format("cloudFiles")
-        .option("cloudFiles.format", "csv")
-        .option("cloudFiles.inferColumnTypes", "true")
+        spark
+        .read
+        .format("csv")
         .option("header", "true")
-        .option("cloudFiles.schemaLocation", f"{checkpoint_location}/customers")
         .load(f"{volume_path}/customers")
         .select(
             F.col("id").cast("int").alias("id"),
@@ -80,8 +71,8 @@ def customers_bronze() -> DataFrame:
             F.col("phone"),
             F.col("country"),
             F.col("registration_date").cast("date").alias("registration_date"),
-            F.current_timestamp().alias("ingestion_timestamp"),
-            F.input_file_name().alias("source_file")
+            F.current_timestamp().alias("_ingest_ts"),
+            F.col("_metadata.file_path").alias("_ingest_file_path")
         )
     )
 
@@ -97,12 +88,11 @@ def customers_bronze() -> DataFrame:
 )
 def products_bronze() -> DataFrame:
     return (
-        spark.readStream
-        .format("cloudFiles")
+        spark
+        .read
+        .format("csv")
         .option("cloudFiles.format", "csv")
-        .option("cloudFiles.inferColumnTypes", "true")
         .option("header", "true")
-        .option("cloudFiles.schemaLocation", f"{checkpoint_location}/products")
         .load(f"{volume_path}/products")
         .select(
             F.col("id").cast("int").alias("id"),
@@ -110,8 +100,8 @@ def products_bronze() -> DataFrame:
             F.col("category"),
             F.col("unit_price").cast("decimal(10,2)").alias("unit_price"),
             F.col("stock_quantity").cast("int").alias("stock_quantity"),
-            F.current_timestamp().alias("ingestion_timestamp"),
-            F.input_file_name().alias("source_file")
+            F.current_timestamp().alias("_ingest_ts"),
+            F.col("_metadata.file_path").alias("_ingest_file_path")
         )
     )
 
@@ -127,7 +117,8 @@ def products_bronze() -> DataFrame:
 )
 def orders_bronze() -> DataFrame:
     return (
-        spark.readStream
+        spark
+        .readStream
         .format("cloudFiles")
         .option("cloudFiles.format", "csv")
         .option("cloudFiles.inferColumnTypes", "true")
@@ -142,8 +133,8 @@ def orders_bronze() -> DataFrame:
             F.col("quantity").cast("int").alias("quantity"),
             F.col("order_amount").cast("decimal(10,2)").alias("order_amount"),
             F.col("status"),
-            F.current_timestamp().alias("ingestion_timestamp"),
-            F.input_file_name().alias("source_file")
+            F.current_timestamp().alias("_ingest_ts"),
+            F.col("_metadata.file_path").alias("_ingest_file_path")
         )
     )
 
@@ -169,11 +160,11 @@ def orders_bronze() -> DataFrame:
 @dlt.expect_or_drop("no_dqx_errors", "_errors IS NULL")
 def customers_silver(engine: DQEngine = dq_engine) -> DataFrame:
     # Read from bronze layer
-    bronze_df = dlt.read_stream("customers_bronze")
+    bronze_df = dlt.read("customers_bronze")
     
     # Load rules from YAML
     yaml_file = f"{rules_location}/customers_rules.yaml"
-    checks = yaml.safe_load(yaml_file)
+    checks = engine.load_checks(WorkspaceFileChecksStorageConfig(yaml_file))
     
     # Apply DQX checks using the shared DQEngine
     return engine.apply_checks_by_metadata(bronze_df, checks)
@@ -192,14 +183,14 @@ def customers_silver(engine: DQEngine = dq_engine) -> DataFrame:
 @dlt.expect_or_drop("no_dqx_errors", "_errors IS NULL")
 def products_silver(engine: DQEngine = dq_engine) -> DataFrame:
     # Read from bronze layer
-    bronze_df = dlt.read_stream("products_bronze")
+    bronze_df = dlt.read("products_bronze")
     
     # Load rules from YAML
     yaml_file = f"{rules_location}/products_rules.yaml"
-    checks = yaml.safe_load(yaml_file)
+    checks = engine.load_checks(WorkspaceFileChecksStorageConfig(yaml_file))
     
     # Apply DQX checks using the shared DQEngine
-    return dq_engine.apply_checks_by_metadata(bronze_df, checks)
+    return engine.apply_checks_by_metadata(bronze_df, checks)
 
 # COMMAND ----------
 
@@ -219,10 +210,10 @@ def orders_silver(engine: DQEngine = dq_engine) -> DataFrame:
     
     # Load rules from YAML
     yaml_file = f"{rules_location}/orders_rules.yaml"
-    checks = yaml.safe_load(yaml_file)
+    checks = engine.load_checks(WorkspaceFileChecksStorageConfig(yaml_file))
     
     # Apply DQX checks using the shared DQEngine
-    return dq_engine.apply_checks_by_metadata(bronze_df, checks)
+    return engine.apply_checks_by_metadata(bronze_df, checks)
 
 # COMMAND ----------
 
@@ -244,11 +235,11 @@ def orders_silver(engine: DQEngine = dq_engine) -> DataFrame:
 @dlt.expect_or_drop("has_dqx_errors", "_errors IS NOT NULL")
 def customers_quarantine(engine: DQEngine = dq_engine) -> DataFrame:
     # Read from bronze layer
-    bronze_df = dlt.read_stream("customers_bronze")
+    bronze_df = dlt.read("customers_bronze")
     
     # Load rules from YAML
     yaml_file = f"{rules_location}/customers_rules.yaml"
-    checks = yaml.safe_load(yaml_file)
+    checks = engine.load_checks(WorkspaceFileChecksStorageConfig(yaml_file))
     
     # Apply DQX checks using the shared DQEngine
     df_with_checks = engine.apply_checks_by_metadata(bronze_df, checks)
@@ -256,9 +247,7 @@ def customers_quarantine(engine: DQEngine = dq_engine) -> DataFrame:
     # Add quarantine metadata
     return df_with_checks.select(
         "*",
-        F.current_timestamp().alias("quarantine_timestamp"),
-        F.concat_ws(", ", F.col("_errors")).alias("error_details"),
-        F.size(F.col("_errors")).alias("error_count")
+        F.current_timestamp().alias("_quarantine_ts")
     )
 
 # COMMAND ----------
@@ -273,11 +262,11 @@ def customers_quarantine(engine: DQEngine = dq_engine) -> DataFrame:
 @dlt.expect_or_drop("has_dqx_errors", "_errors IS NOT NULL")
 def products_quarantine(engine: DQEngine = dq_engine) -> DataFrame:
     # Read from bronze layer
-    bronze_df = dlt.read_stream("products_bronze")
+    bronze_df = dlt.read("products_bronze")
     
     # Load rules from YAML
     yaml_file = f"{rules_location}/products_rules.yaml"
-    checks = yaml.safe_load(yaml_file)
+    checks = engine.load_checks(WorkspaceFileChecksStorageConfig(yaml_file))
     
     # Apply DQX checks using the shared DQEngine
     df_with_checks = engine.apply_checks_by_metadata(bronze_df, checks)
@@ -285,9 +274,7 @@ def products_quarantine(engine: DQEngine = dq_engine) -> DataFrame:
     # Add quarantine metadata
     return df_with_checks.select(
         "*",
-        F.current_timestamp().alias("quarantine_timestamp"),
-        F.concat_ws(", ", F.col("_errors")).alias("error_details"),
-        F.size(F.col("_errors")).alias("error_count")
+        F.current_timestamp().alias("_quarantine_ts")
     )
 
 # COMMAND ----------
@@ -306,7 +293,7 @@ def orders_quarantine(engine: DQEngine = dq_engine) -> DataFrame:
     
     # Load rules from YAML
     yaml_file = f"{rules_location}/orders_rules.yaml"
-    checks = yaml.safe_load(yaml_file)
+    checks = engine.load_checks(WorkspaceFileChecksStorageConfig(yaml_file))
     
     # Apply DQX checks using the shared DQEngine
     df_with_checks = engine.apply_checks_by_metadata(bronze_df, checks)
@@ -314,9 +301,7 @@ def orders_quarantine(engine: DQEngine = dq_engine) -> DataFrame:
     # Add quarantine metadata
     return df_with_checks.select(
         "*",
-        F.current_timestamp().alias("quarantine_timestamp"),
-        F.concat_ws(", ", F.col("_errors")).alias("error_details"),
-        F.size(F.col("_errors")).alias("error_count")
+        F.current_timestamp().alias("_quarantine_ts")
     )
 
 # COMMAND ----------
@@ -338,8 +323,8 @@ def orders_quarantine(engine: DQEngine = dq_engine) -> DataFrame:
 )
 def orders_gold() -> DataFrame:
     orders = dlt.read_stream("orders_silver")
-    customers = dlt.read_stream("customers_silver")
-    products = dlt.read_stream("products_silver")
+    customers = dlt.read("customers_silver")
+    products = dlt.read("products_silver")
     
     return (
         orders
@@ -356,8 +341,7 @@ def orders_gold() -> DataFrame:
             customers.country.alias("customer_country"),
             products.product_name,
             products.category.alias("product_category"),
-            products.unit_price.alias("product_unit_price"),
-            orders.ingestion_timestamp
+            products.unit_price.alias("product_unit_price")
         )
     )
 
@@ -406,15 +390,19 @@ def dqx_quality_summary() -> DataFrame:
         StructField("quarantine_records", LongType(), False)
     ])
     
-    summary_df = spark.createDataFrame(summary_data, schema)
-    
-    return summary_df.withColumn(
-        "quality_pass_rate",
-        F.round((F.col("silver_records") / F.col("bronze_records")) * 100, 2)
-    ).withColumn(
-        "quality_fail_rate",
-        F.round((F.col("quarantine_records") / F.col("bronze_records")) * 100, 2)
-    ).withColumn(
-        "summary_timestamp",
-        F.current_timestamp()
+    return (
+        spark
+        .createDataFrame(summary_data, schema)
+        .withColumn(
+            "quality_pass_rate",
+            F.round((F.col("silver_records") / F.col("bronze_records")) * 100, 2)
+        )
+        .withColumn(
+            "quality_fail_rate",
+            F.round((F.col("quarantine_records") / F.col("bronze_records")) * 100, 2)
+        )
+        .withColumn(
+            "summary_timestamp",
+            F.current_timestamp()
+        )
     )

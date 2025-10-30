@@ -2,11 +2,11 @@
 resources:
   jobs:
     daily_data_quality_refresh:
-      name: "[${bundle.target}] Daily Data Quality Refresh"
+      name: "[${bundle.name}] Data Quality Refresh"
       
-      # Schedule: Run daily at 2 AM
+      # Schedule: Run hourly
       schedule:
-        quartz_cron_expression: "0 0 2 * * ?"
+        quartz_cron_expression: "0 0 * * * ?"
         timezone_id: "UTC"
         pause_status: UNPAUSED
       
@@ -15,22 +15,10 @@ resources:
         on_failure:
           - ${workspace.current_user.userName}
       
-      # Job cluster configuration for data generation
-      job_clusters:
-        - job_cluster_key: data_generation_cluster
-          new_cluster:
-            spark_version: 14.3.x-scala2.12
-            node_type_id: i3.xlarge
-            num_workers: 2
-            data_security_mode: USER_ISOLATION
-            spark_conf:
-              spark.databricks.cluster.profile: serverless
-      
       # Job tasks
       tasks:
         # Task 1: Generate data with quality issues
         - task_key: generate_data
-          job_cluster_key: data_generation_cluster
           notebook_task:
             notebook_path: ../notebooks/01_generate_data.py
             base_parameters:

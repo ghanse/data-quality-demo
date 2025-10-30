@@ -12,7 +12,9 @@
 
 # COMMAND ----------
 
+import random
 import dbldatagen as dg
+
 from pyspark.sql import functions as F
 from pyspark.sql.types import *
 
@@ -127,9 +129,10 @@ customer_ids = [row.id for row in customers_df.select("id").collect()]
 product_ids = [row.id for row in products_df.select("id").collect()]
 
 # Generate orders
+num_rows = num_rows if random.random() < 0.9 else round(num_rows * 0.01)
 orders_spec = (
     dg.DataGenerator(spark, name="orders", rows=num_rows, partitions=4)
-    .withIdOutput()
+    .withColumn("id", "string", expr="uuid()")
     .withColumn("customer_id", "integer", values=customer_ids)
     .withColumn("product_id", "integer", values=product_ids)
     .withColumn("order_date", "timestamp", begin="2024-01-01 00:00:00", end="2024-12-31 23:59:59")
@@ -154,5 +157,5 @@ orders_with_issues_df = orders_df.select(
 
 # Write to CSV
 orders_path = f"{volume_path}/orders"
-orders_with_issues_df.write.mode("overwrite").option("header", "true").csv(orders_path)
+orders_with_issues_df.write.mode("append").option("header", "true").csv(orders_path)
 print(f"Generated {orders_with_issues_df.count()} orders at {orders_path}")
