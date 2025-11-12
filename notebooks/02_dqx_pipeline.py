@@ -307,6 +307,33 @@ def orders_quarantine(engine: DQEngine = dq_engine) -> DataFrame:
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## Reingest Layer - Automate Data Quality Fixes
+# MAGIC
+# MAGIC Use DQX's row-level metadata to automatically fix data which violates defined rules.
+
+# COMMAND ----------
+
+@dlt.append_flow(
+    target="orders_silver",
+    name="f_orders_reingested",
+    comment="Reingested orders after automated data correction"
+)
+def f_orders_reingested() -> DataFrame:
+    # Read from the quarantined orders:
+    quarantine_df = dlt.read_stream("orders_quarantine")
+
+    # Filter for invalid order statuses:
+    return (
+        quarantine_df
+        .where("array_size(_errors) = 1 and exists(_errors, e -> e['name'] = 'status_not_blank')")
+        .withColumn("status", F.lit("UNKNOWN_STATUS"))
+        .drop("_warnings")
+        .drop("_errors")
+    )
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ## Gold Layer - Business Analytics
 # MAGIC 
 # MAGIC Create enriched tables for business intelligence and analytics using validated silver data.
