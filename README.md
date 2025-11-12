@@ -125,6 +125,12 @@ The demo contains the following source code files:
    - Analyzes quarantined records and identifies issue patterns
    - Provides data quality recommendations based on thresholds
 
+4. *Defining Quality Rules Notebook* (`notebooks/04_create_new_quality_rules.py`): Contains examples for data quality rule definition:
+   - Inferring rules from existing data using the `DQProfiler`
+   - Storing rules in a Delta table
+   - Manually curating inferred rule definitions
+   - Defining rules in natural language
+
 ## Data Quality Checks with DQX
 
 The pipeline implements comprehensive DQX checks using the [DQX framework](https://databrickslabs.github.io/dqx/). All checks are defined in YAML configuration files (one per table) and loaded dynamically at runtime:
@@ -398,7 +404,8 @@ data-quality-demo/
 └── notebooks/
     ├── 01_generate_data.py            # Data generation notebook
     ├── 02_dqx_pipeline.py             # DQX pipeline notebook (PySpark)
-    └── 03_analyze_quality_metrics.py  # Data quality analysis notebook
+    ├── 03_analyze_quality_metrics.py  # Data quality analysis notebook
+    └── 04_create_new_quality_rules.py # Data quality analysis notebook
 ```
 
 ## Troubleshooting
