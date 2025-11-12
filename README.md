@@ -54,14 +54,17 @@ This demo shows you how to build a data quality pipeline using the DQX framework
 │           ▼                     ▼                     ▼                │
 │  ┌────────┴─────────┐  ┌────────┴─────────┐  ┌────────┴─────────┐      │
 │  │ SILVER LAYER     │  │ SILVER LAYER     │  │ SILVER LAYER     │      │
-│  │ customers_silver │  │ products_silver  │  │ orders_silver    │      │
-│  │ (_valid=true)    │  │ (_valid=true)    │  │ (_valid=true)    │      │
-│  └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘      │
-│           │                     │                     │                │
-│  ┌────────┴─────────┐  ┌────────┴─────────┐  ┌────────┴─────────┐      │
-│  │ QUARANTINE       │  │ QUARANTINE       │  │ QUARANTINE       │      │
-│  │ customers_quar   │  │ products_quar    │  │ orders_quar      │      │
-│  │ (_valid=false)   │  │ (_valid=false)   │  │ (_valid=false)   │      │
+│  │ customers_silver │  │ products_silver  │  │ orders_silver    |◀─┐   │
+│  │ (Valid rows)     │  │ (Valid rows)     │  │ (Valid rows)     │  │   │
+│  └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘  │   │
+│           │                     │                     │            │   │
+│           │                     │                     │     Automated  │
+│           │                     │                     │    Reingestion │
+│           │                     │                     │            │   │
+│  ┌────────┴─────────┐  ┌────────┴─────────┐  ┌────────┴─────────┐  │   │
+│  │ QUARANTINE       │  │ QUARANTINE       │  │ QUARANTINE       │  │   │
+│  │ customers_quar   │  │ products_quar    │  │ orders_quar      ├──┘   │
+│  │ (Invalid rows)   │  │ (Invalid rows)   │  │ (Invalid rows)   │      │
 │  └──────────────────┘  └──────────────────┘  └──────────────────┘      │
 │           │                     │                     │                │
 │           └─────────────────────┼─────────────────────┘                │
@@ -116,7 +119,7 @@ The demo contains the following source code files:
 
 2. *DQX Pipeline Notebook* (`notebooks/02_dqx_pipeline.py`): A PySpark-based Lakeflow Declarative pipeline that:
    - Ingests CSV files using [Auto Loader](https://docs.databricks.com/aws/en/ingestion/cloud-object-storage/auto-loader/) into bronze layer streaming tables (no quality checks)
-   - Applies DQX quality checks at the silver layer using metadata-driven rules from YAML configuration and uses DQX + LDP Expectations to actively quarantine low-quality data
+   - Applies DQX quality checks at the silver layer using metadata-driven rules from YAML configuration; Uses DQX + LDP Expectations to actively quarantine low-quality data and reingest data with specific failures
    - Creates enriched gold layer tables for analytics
 
 3. *Quality Metrics Analysis Notebook* (`notebooks/03_analyze_quality_metrics.py`): A comprehensive data analysis that:
@@ -149,6 +152,7 @@ The pipeline follows a medallion architecture where data is moved through severa
    - `_warnings`: Array of warning messages
 
 LDP Expectations are be applied to ensure that rows with any `_errors` or `_warnings` are written to a quarantine table.
+3. *Reingestion*: Quarantined rows with row-level DQX metadata is automatically reingested using the `_errors` column and `append_flow`
 4. *Gold Layer*: Data validated with DQX + Expectations is used to write gold layer aggregations and provide rich, business-ready data.
 
 ### Defining DQX Checks in YAML
@@ -173,7 +177,6 @@ The `02_dqx_pipeline.py` notebook demonstrates how to load and apply YAML-based 
 
 ```python
 from databricks.labs.dqx.engine import DQEngine
-from databricks.labs.dqx.config import WorkspaceFileChecksStorageConfig
 from databricks.sdk import WorkspaceClient
 
 # Initialize DQX engine once at the module level for efficiency
@@ -184,6 +187,8 @@ dq_engine = DQEngine(workspace_client)
 #### 2. Load Checks from YAML
 
 ```python
+from databricks.labs.dqx.config import WorkspaceFileChecksStorageConfig
+
 # Get rules location from pipeline configuration
 rules_location = spark.conf.get("rules_location")
 
